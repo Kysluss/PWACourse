@@ -11,6 +11,7 @@ self.addEventListener('install', function(event) {
         cache.addAll([
           '/', 
           '/index.html', 
+          '/offline.html', 
           '/src/js/app.js', 
           '/src/js/feed.js', 
           '/src/js/promise.js', 
@@ -45,26 +46,60 @@ self.addEventListener('activate', function(event) {
   return self.clients.claim();
 });
 
+// self.addEventListener('fetch', function(event) {
+//   event.respondWith(
+//     caches.match(event.request)
+//       .then(function(response) {
+//         if(response) {
+//           return response;
+//         }
+//         else {
+//           return fetch(event.request)
+//             .then(function(res) {
+//               return caches.open(CACHE_DYNAMIC_NAME)
+//                 .then(function(cache) {
+//                   cache.put(event.request.url, res.clone());
+//                   return res;
+//                 });
+//             })
+//             .catch(function(err) {
+//               return caches.open(CACHE_STATIC_NAME)
+//                 .then(function(cache) {
+//                   return cache.match('/offline.html');
+//                 })
+//             });
+//         }
+//       })
+//   );
+// });
+
+// Network-first with dynamic caching
 self.addEventListener('fetch', function(event) {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(function(response) {
-        if(response) {
-          return response;
-        }
-        else {
-          return fetch(event.request)
-            .then(function(res) {
-              return caches.open(CACHE_DYNAMIC_NAME)
-                .then(function(cache) {
-                  cache.put(event.request.url, res.clone());
-                  return res;
-                })
-                .catch(function(err) {
-
-                });
-            });
-        }
+        return caches.open(CACHE_DYNAMIC_NAME)
+          .then(function(cache) {
+            cache.put(event.request.url, res.clone());
+            return res;
+          });
+      })
+      .catch(function(err) {
+        return caches.match(event.request)
       })
   );
 });
+
+// // Cache-only
+// self.addEventListener('fetch', function(event) {
+//   event.respondWith(
+//     caches.match(event.request)
+//   );
+// });
+
+// // Network-only
+// self.addEventListener('fetch', function(event) {
+//   event.respondWith(
+//     fetch(event.request)
+//   );
+// });
