@@ -1,4 +1,4 @@
-var CACHE_STATIC_NAME = 'static-v13';
+var CACHE_STATIC_NAME = 'static-v14';
 var CACHE_DYNAMIC_NAME = 'dynamic-v2';
 var STATIC_FILES = [
   '/',
@@ -16,6 +16,19 @@ var STATIC_FILES = [
   'https://fonts.googleapis.com/icon?family=Material+Icons',
   'https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css'
 ];
+
+// function trimCache(cacheName, maxItems) {
+//   caches.open(cacheName)
+//     .then(function(cache) {
+//       return cache.keys()
+//         .then(function(keys) {
+//           if(keys.length > maxItems) {
+//             cache.delete(keys[0])
+//               .then(trimCache(cacheName, maxItems))
+//           }
+//         })
+//     })
+// }
 
 self.addEventListener('install', function (event) {
   console.log('[Service Worker] Installing Service Worker ...', event);
@@ -44,24 +57,35 @@ self.addEventListener('activate', function (event) {
   return self.clients.claim();
 });
 
+function isInArray(string, array) {
+  for(var i = 0; i < array.length; i++) {
+    if(array[i] === string) return true;
+  }
+  return false;
+}
+
 self.addEventListener('fetch', function(event) {
   var url = 'https://httpbin.org/get';
 
+  // Cache first with network fallback
   if(event.request.url.indexOf(url) !== -1) {
     event.respondWith(
       caches.open(CACHE_DYNAMIC_NAME)
         .then(function(cache) {
           return fetch(event.request)
             .then(function(res) {
+              // trimCache(CACHE_DYNAMIC_NAME, 3);
               cache.put(event.request, res.clone());
               return res;
             });
         })
     );
   }
-  else if (new RegExp('\\b' + STATIC_FILES.join('\\b|\\b') + '\\b').test(event.request.url)) {
+  // Cache only
+  else if (isInArray(event.request.url, STATIC_FILES)) {
     event.respondWith(caches.match(event.request.url));
   }
+  // Cache first with network fallback
   else {
     event.respondWith(
       caches.match(event.request)
@@ -73,6 +97,7 @@ self.addEventListener('fetch', function(event) {
               .then(function(res) {
                 return caches.open(CACHE_DYNAMIC_NAME)
                   .then(function(cache) {
+                    // trimCache(CACHE_DYNAMIC_NAME, 3);
                     cache.put(event.request.url, res.clone());
                     return res;
                   })
@@ -80,7 +105,9 @@ self.addEventListener('fetch', function(event) {
               .catch(function(err) {
                 return caches.open(CACHE_STATIC_NAME)
                   .then(function(cache) {
-                    if(event.request.url.indexOf('/help') !== -1) {
+                    // If the request is for an HTML page, we can return the offline.html file
+                    // This is better than keeping a list of all the pages
+                    if(event.request.headers.get('accept').includes('text/html') !== -1) {
                       return cache.match('/offline.html');
                     }
                   });
