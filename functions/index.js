@@ -38,7 +38,13 @@ exports.storePostData = functions.https.onRequest(function(request, response) {
             p256dh: sub.val().keys.p256dh
           }
         };
-        webpush.sendNotification(pushConfig, JSON.stringify({ title: 'New Post', content: 'New Post added!' }))
+        webpush.sendNotification(pushConfig, JSON.stringify({
+          title: 'New Post', 
+          content: 'New Post added!', 
+          // This URL can be a fully qualified URL
+          // Otherwise, it can be a relative URL to your application
+          openUrl: '/help'
+        }))
           .catch(function(err) {
             console.log(err);
           });
