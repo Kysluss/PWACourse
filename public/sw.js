@@ -227,3 +227,28 @@ self.addEventListener('sync', function(event) {
     );
   }
 });
+
+// An action on the notification was clicked
+self.addEventListener('notificationclick', function(event) {
+  var notification = event.notification;
+  var action = event.action;
+
+  console.log(notification);
+
+  if(action === 'confirm') {
+    console.log('Confirm was chosen');
+    notification.close();
+  }
+  else {
+    console.log(action);
+    notification.close();
+  }
+});
+
+// The notification was closed
+// User did not click on it
+// User did not click any action buttons
+// User simply just got rid of the notification
+self.addEventListener('notificationclose', function(event) {
+  console.log('Notification was closed', event);
+})
