@@ -241,7 +241,23 @@ self.addEventListener('notificationclick', function(event) {
   }
   else {
     console.log(action);
-    notification.close();
+    event.waitUntil(
+      clients.matchAll()
+        .then(function(clis) {
+          var client = clis.find(function(c) {
+            return c.visibilityState === 'visible';
+          });
+
+          if(client !== undefined) {
+            client.navigate('http://localhost:8080');
+            client.focus();
+          }
+          else {
+            clients.openWindow('http://localhost:8080')
+          }
+          notification.close();
+        })
+    );
   }
 });
 
@@ -252,3 +268,28 @@ self.addEventListener('notificationclick', function(event) {
 self.addEventListener('notificationclose', function(event) {
   console.log('Notification was closed', event);
 })
+
+// This is the event that is triggered when a push notificatio nhappens
+// It's is for this browser on this device has a subscription and the server sends out a notification
+self.addEventListener('push', function(event) {
+  console.log('Push Notification Received', event);
+
+  var data = {
+    title: 'New!', 
+    content: 'Something new happened!'
+  };
+
+  if(event.data) {
+    data = JSON.parse(event.data.text());
+  }
+
+  var options = {
+    body: data.content, 
+    icon: '/src/images/icons/app-icon-96x96.png', 
+    badge: '/src/images/icons/app-icon-96x96.png'
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
