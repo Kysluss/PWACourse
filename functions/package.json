@@ -4,10 +4,10 @@
   "dependencies": {
     "cors": "^2.8.4",
     "firebase-admin": "^4.2.1",
-    "firebase-functions": "^0.5.7",
+    "firebase-functions": "^2.1.0",
     "web-push": "^3.3.3"
   },
-  "private": true, 
+  "private": true,
   "scripts": {
     "web-push": "web-push"
   }
