@@ -128,7 +128,7 @@ if ('indexedDB' in window) {
 }
 
 function sendData() {
-  fetch(url, {
+  fetch('https://us-central1-pwagram-d96a0.cloudfunctions.net/storePostData', {
     method: 'POST', 
     headers: {
       'Content-Type': 'application/json', 
@@ -171,7 +171,7 @@ form.addEventListener('submit', function(event) {
             return sw.sync.register('sync-new-post');
           })
           .then(function() {
-            var snackbarContainer = document.querySelector('#confirmation-tost');
+            var snackbarContainer = document.querySelector('#confirmation-toast');
             var data = { message: 'Your Post was saved for syncing!' };
 
             snackbarContainer.MaterialSnackbar.showSnackbar(data);

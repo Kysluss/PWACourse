@@ -196,7 +196,7 @@ self.addEventListener('sync', function(event) {
       readAllData('sync-posts')
         .then(function(posts) {
           for(var dt of posts) {
-            fetch('https://pwagram-d96a0.firebaseio.com/posts.json', {
+            fetch('https://us-central1-pwagram-d96a0.cloudfunctions.net/storePostData', {
               method: 'POST', 
               headers: {
                 'Content-Type': 'application/json', 
@@ -213,7 +213,10 @@ self.addEventListener('sync', function(event) {
               console.log('Sent data', res);
 
               if(res.ok) {
-                deleteItemFromData('sync-posts', dt.id);
+                res.json()
+                  .then(function(data) {
+                    deleteItemFromData('sync-posts', data.id);
+                  });
               }
             })
             .catch(function(err) {
