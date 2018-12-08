@@ -1,13 +1,14 @@
 importScripts('/src/js/idb.js');
 importScripts('/src/js/utility.js');
 
-var CACHE_STATIC_NAME = 'static-v18';
-var CACHE_DYNAMIC_NAME = 'dynamic-v2';
+var CACHE_STATIC_NAME = 'static-v32';
+var CACHE_DYNAMIC_NAME = 'dynamic-v3';
 var STATIC_FILES = [
   '/',
   '/index.html',
   '/offline.html',
   '/src/js/app.js',
+  '/src/js/utility.js',
   '/src/js/feed.js',
   '/src/js/idb.js',
   '/src/js/promise.js',
@@ -23,14 +24,14 @@ var STATIC_FILES = [
 
 // function trimCache(cacheName, maxItems) {
 //   caches.open(cacheName)
-//     .then(function(cache) {
+//     .then(function (cache) {
 //       return cache.keys()
-//         .then(function(keys) {
-//           if(keys.length > maxItems) {
+//         .then(function (keys) {
+//           if (keys.length > maxItems) {
 //             cache.delete(keys[0])
-//               .then(trimCache(cacheName, maxItems))
+//               .then(trimCache(cacheName, maxItems));
 //           }
-//         })
+//         });
 //     })
 // }
 
@@ -62,64 +63,59 @@ self.addEventListener('activate', function (event) {
 });
 
 function isInArray(string, array) {
-  for(var i = 0; i < array.length; i++) {
-    if(array[i] === string) return true;
+  var cachePath;
+  if (string.indexOf(self.origin) === 0) { // request targets domain where we serve the page from (i.e. NOT a CDN)
+    console.log('matched ', string);
+    cachePath = string.substring(self.origin.length); // take the part of the URL AFTER the domain (e.g. after localhost:8080)
+  } else {
+    cachePath = string; // store the full request (for CDNs)
   }
-  return false;
+  return array.indexOf(cachePath) > -1;
 }
 
-self.addEventListener('fetch', function(event) {
-  var url = 'https://pwagram-d96a0.firebaseio.com/posts.json';
+self.addEventListener('fetch', function (event) {
 
-  // Cache first with network fallback
-  if(event.request.url.indexOf(url) !== -1) {
-    event.respondWith(
-      fetch(event.request)
-        .then(function(res) {
-          var clonedRes = res.clone();
-          clearAllData('posts')
-            .then(function() {
-              return clonedRes.json()
-            })
-            .then(function(data) {
-              for(var key in data) {
-                writeData('posts', data[key])
-                  /*.then(function(data) {
-                    deleteItemFromData('posts', data.id);
-                  })*/;
-              }
-            });
-          return res;
-        })
+  var url = 'https://pwagram-d96a0.firebaseio.com/posts';
+  if (event.request.url.indexOf(url) > -1) {
+    event.respondWith(fetch(event.request)
+      .then(function (res) {
+        var clonedRes = res.clone();
+        clearAllData('posts')
+          .then(function () {
+            return clonedRes.json();
+          })
+          .then(function (data) {
+            for (var key in data) {
+              writeData('posts', data[key])
+            }
+          });
+        return res;
+      })
     );
-  }
-  // Cache only
-  else if (isInArray(event.request.url, STATIC_FILES)) {
-    event.respondWith(caches.match(event.request.url));
-  }
-  // Cache first with network fallback
-  else {
+  } else if (isInArray(event.request.url, STATIC_FILES)) {
     event.respondWith(
       caches.match(event.request)
-        .then(function(response) {
+    );
+  } else {
+    event.respondWith(
+      caches.match(event.request)
+        .then(function (response) {
           if (response) {
             return response;
           } else {
             return fetch(event.request)
-              .then(function(res) {
+              .then(function (res) {
                 return caches.open(CACHE_DYNAMIC_NAME)
-                  .then(function(cache) {
+                  .then(function (cache) {
                     // trimCache(CACHE_DYNAMIC_NAME, 3);
                     cache.put(event.request.url, res.clone());
                     return res;
                   })
               })
-              .catch(function(err) {
+              .catch(function (err) {
                 return caches.open(CACHE_STATIC_NAME)
-                  .then(function(cache) {
-                    // If the request is for an HTML page, we can return the offline.html file
-                    // This is better than keeping a list of all the pages
-                    if(event.request.headers.get('accept').includes('text/html') !== -1) {
+                  .then(function (cache) {
+                    if (event.request.headers.get('accept').includes('text/html')) {
                       return cache.match('/offline.html');
                     }
                   });
@@ -188,41 +184,36 @@ self.addEventListener('fetch', function(event) {
 
 self.addEventListener('sync', function(event) {
   console.log('[Service Worker] Background syncing', event);
-
-  if(event.tag === 'sync-new-post') {
-    console.log('[Service Worker] Syncing new posts');
-
+  if (event.tag === 'sync-new-posts') {
+    console.log('[Service Worker] Syncing new Posts');
     event.waitUntil(
       readAllData('sync-posts')
-        .then(function(posts) {
-          for(var dt of posts) {
+        .then(function(data) {
+          for (var dt of data) {
+            var postData = new FormData();
+            postData.append('id', dt.id);
+            postData.append('title', dt.title);
+            postData.append('location', dt.location);
+            postData.append('file', dt.picture, dt.id + '.png');
+            
             fetch('https://us-central1-pwagram-d96a0.cloudfunctions.net/storePostData', {
-              method: 'POST', 
-              headers: {
-                'Content-Type': 'application/json', 
-                'Accept': 'application/json'
-              }, 
-              body: JSON.stringify({
-                id: dt.id, 
-                title: dt.title, 
-                location: dt.location, 
-                image: 'https://firebasestorage.googleapis.com/v0/b/pwagram-d96a0.appspot.com/o/sf-boat.jpg?alt=media&token=6ccea2d0-90d6-47b3-8d64-3e5ef903aa00'
+              method: 'POST',
+              body: postData
+            })
+              .then(function(res) {
+                console.log('Sent data', res);
+                if (res.ok) {
+                  res.json()
+                    .then(function(resData) {
+                      deleteItemFromData('sync-posts', resData.id);
+                    });
+                }
               })
-            })
-            .then(function(res) {
-              console.log('Sent data', res);
-
-              if(res.ok) {
-                res.json()
-                  .then(function(data) {
-                    deleteItemFromData('sync-posts', data.id);
-                  });
-              }
-            })
-            .catch(function(err) {
-              console.log('Error while sending data', err);
-            })
+              .catch(function(err) {
+                console.log('Error while sending data', err);
+              });
           }
+
         })
     );
   }
@@ -235,11 +226,10 @@ self.addEventListener('notificationclick', function(event) {
 
   console.log(notification);
 
-  if(action === 'confirm') {
+  if (action === 'confirm') {
     console.log('Confirm was chosen');
     notification.close();
-  }
-  else {
+  } else {
     console.log(action);
     event.waitUntil(
       clients.matchAll()
@@ -248,12 +238,11 @@ self.addEventListener('notificationclick', function(event) {
             return c.visibilityState === 'visible';
           });
 
-          if(client !== undefined) {
+          if (client !== undefined) {
             client.navigate(notification.data.url);
             client.focus();
-          }
-          else {
-            clients.openWindow(notification.data.url)
+          } else {
+            clients.openWindow(notification.data.url);
           }
           notification.close();
         })
@@ -267,27 +256,23 @@ self.addEventListener('notificationclick', function(event) {
 // User simply just got rid of the notification
 self.addEventListener('notificationclose', function(event) {
   console.log('Notification was closed', event);
-})
+});
 
 // This is the event that is triggered when a push notificatio nhappens
 // It's is for this browser on this device has a subscription and the server sends out a notification
 self.addEventListener('push', function(event) {
-  console.log('Push Notification Received', event);
+  console.log('Push Notification received', event);
 
-  var data = {
-    title: 'New!', 
-    content: 'Something new happened!', 
-    openUrl: '/'
-  };
+  var data = {title: 'New!', content: 'Something new happened!', openUrl: '/'};
 
-  if(event.data) {
+  if (event.data) {
     data = JSON.parse(event.data.text());
   }
 
   var options = {
-    body: data.content, 
-    icon: '/src/images/icons/app-icon-96x96.png', 
-    badge: '/src/images/icons/app-icon-96x96.png', 
+    body: data.content,
+    icon: '/src/images/icons/app-icon-96x96.png',
+    badge: '/src/images/icons/app-icon-96x96.png',
     data: {
       url: data.openUrl
     }
@@ -297,3 +282,24 @@ self.addEventListener('push', function(event) {
     self.registration.showNotification(data.title, options)
   );
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
