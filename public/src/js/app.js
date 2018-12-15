@@ -71,10 +71,11 @@ function configurePushSub() {
         });
       } else {
         // We have a subscription
+        return sub;
       }
     })
     .then(function(newSub) {
-      return fetch('https://pwagram-99adf.firebaseio.com/subscriptions.json', {
+      return fetch('https://pwagram-d96a0.firebaseio.com/subscriptions.json', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
